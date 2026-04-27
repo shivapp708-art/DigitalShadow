@@ -1,0 +1,27 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration {
+    public function up(): void
+    {
+        Schema::create('otp_sessions', function (Blueprint $table) {
+            $table->id();
+            $table->string('identifier');     // phone or email
+            $table->string('identifier_type'); // 'phone' or 'email'
+            $table->string('otp_hash');        // bcrypt hash of OTP
+            $table->integer('attempts')->default(0);
+            $table->boolean('verified')->default(false);
+            $table->timestamp('expires_at');
+            $table->timestamps();
+            $table->index(['identifier', 'identifier_type']);
+        });
+    }
+
+    public function down(): void
+    {
+        Schema::dropIfExists('otp_sessions');
+    }
+};
