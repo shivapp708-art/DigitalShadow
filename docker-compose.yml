@@ -1,0 +1,146 @@
+version: "3.8"
+
+services:
+  laravel:
+    build:
+      context: ./backend/laravel
+      dockerfile: Dockerfile
+    container_name: mds-laravel
+    ports:
+      - "9000:9000"
+    volumes:
+      - ./backend/laravel:/var/www/html
+      - laravel-storage:/var/www/html/storage
+    environment:
+      APP_ENV: production
+      APP_URL: https://mydigitalshadow.in
+      DB_CONNECTION: pgsql
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_DATABASE: mydigitalshadow
+      DB_USERNAME: mds_user
+      DB_PASSWORD: ${DB_PASSWORD}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      STRIPE_KEY: ${STRIPE_KEY}
+      STRIPE_SECRET: ${STRIPE_SECRET}
+      SETU_CLIENT_ID: ${SETU_CLIENT_ID}
+      SETU_CLIENT_SECRET: ${SETU_CLIENT_SECRET}
+      DIGIO_API_KEY: ${DIGIO_API_KEY}
+      MASTER_HMAC_SECRET: ${MASTER_HMAC_SECRET}
+      AES_ENCRYPTION_KEY: ${AES_ENCRYPTION_KEY}
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - mds-network
+    restart: unless-stopped
+
+  fastapi:
+    build:
+      context: ./backend/fastapi
+      dockerfile: Dockerfile
+    container_name: mds-fastapi
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql://mds_user:${DB_PASSWORD}@postgres:5432/mydigitalshadow
+      REDIS_URL: redis://redis:6379
+      OLLAMA_URL: http://ollama:11434
+      MASTER_HMAC_SECRET: ${MASTER_HMAC_SECRET}
+      AES_ENCRYPTION_KEY: ${AES_ENCRYPTION_KEY}
+    depends_on:
+      - postgres
+      - redis
+      - ollama
+    networks:
+      - mds-network
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend/react
+      dockerfile: Dockerfile
+    container_name: mds-frontend
+    ports:
+      - "3000:3000"
+    networks:
+      - mds-network
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:alpine
+    container_name: mds-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./infrastructure/docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./infrastructure/ssl:/etc/nginx/ssl:ro
+      - certbot-webroot:/var/www/html
+    depends_on:
+      - laravel
+      - fastapi
+      - frontend
+    networks:
+      - mds-network
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: mds-postgres
+    environment:
+      POSTGRES_DB: mydigitalshadow
+      POSTGRES_USER: mds_user
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - mds-network
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: mds-redis
+    volumes:
+      - ./infrastructure/docker/redis/redis.conf:/usr/local/etc/redis/redis.conf:ro
+      - redis-data:/data
+    command: redis-server /usr/local/etc/redis/redis.conf
+    networks:
+      - mds-network
+    restart: unless-stopped
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: mds-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    networks:
+      - mds-network
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 8G
+
+  certbot:
+    image: certbot/certbot
+    container_name: mds-certbot
+    volumes:
+      - ./infrastructure/ssl:/etc/letsencrypt
+      - certbot-webroot:/var/www/html
+    profiles:
+      - ssl
+
+volumes:
+  postgres-data:
+  redis-data:
+  ollama-data:
+  laravel-storage:
+  certbot-webroot:
+
+networks:
+  mds-network:
+    driver: bridge
