@@ -2,16 +2,17 @@
 
 namespace Database\Seeders;
 
+use App\Models\User;
 use Illuminate\Database\Seeder;
 
 class DatabaseSeeder extends Seeder
 {
     public function run(): void
     {
-        $this->call([
-            SubscriptionTierSeeder::class,
-            RemediationTemplateSeeder::class,
-            OptOutLinkSeeder::class,
+        User::factory()->create([
+            'name' => 'Admin User',
+            'email' => 'admin@mydigitalshadow.in',
+            'trust_tier' => 'kyc3',
         ]);
     }
 }
